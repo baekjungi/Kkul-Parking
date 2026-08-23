@@ -33,20 +33,6 @@
 | CI/CD | GitHub Actions + Azure OIDC(Federated Credential) |
 | 보안 | Helmet(CSP), Rate Limiting, RBAC(Managed Identity), Key Vault |
 
-## 실행 방법
-
-### 요구사항
-- Node.js 18 이상
-
-```bash
-npm install       # 설치
-npm run dev       # 개발 실행 (파일 변경 감지)
-npm start         # 일반 실행
-npm run preflight # 배포 전 점검
-npm run start:prod # 운영 실행
-```
-
-실행 후 http://localhost:3000 접속
 
 ## 폴더 구조
 ```text
@@ -113,11 +99,4 @@ GitHub (main push)
   - 위치/나침반 아이콘을 이모지에서 커스텀 SVG로 교체
   - 지도 렌더링 실패 원인(CSS position 누락, 변수 선언 오류) 수정
   - UI 전반 접근성/터치 타겟/여백 개선 및 프로모션 배너 제거
-
-## 앞으로 하고 싶은 것
-
-- 실제 로그인/회원 기능
-- 제보 이미지 업로드용 오브젝트 스토리지 연동
-- 제보 데이터 DB 영속화 (현재는 파일 기반 JSON)
-- 저장됨/설정 탭 실기능
 
