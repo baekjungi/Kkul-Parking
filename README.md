@@ -1,168 +1,107 @@
 # 꿀주차 (Kkul-Parking)
 
-목적지 주변의 **무료 / 조건부 무료 / 공영 주차장**을 지도에서 한눈에 찾아주는 모바일 우선 웹앱입니다. 카카오맵·공유누리·공공데이터포털·OpenStreetMap 데이터를 통합해서 보여주고, 예상 주차 요금과 절약 금액까지 계산해줍니다.
+> 목적지 주변의 **무료 / 조건부 무료 / 공영 주차장**을 지도에서 한눈에 찾아주는 모바일 우선 웹앱
 
-- **서비스 URL:** https://app-kkulparking-prod-vjsa7o.azurewebsites.net
-- **저장소:** https://github.com/baekjungi/Kkul-Parking
+카카오맵을 중심으로 공유누리·공공데이터포털·OpenStreetMap 등 여러 공공/민간 주차 데이터를 하나의 지도에 통합하고, 예상 주차 요금과 절약 금액까지 계산해주는 개인 프로젝트입니다. 기획부터 프론트/백엔드 개발, 보안 점검, Azure 클라우드 배포, CI/CD 파이프라인 구축까지 전 과정을 직접 진행했습니다.
 
-## 서비스 소개
+- 🚀 **서비스 바로가기:** https://app-kkulparking-prod-vjsa7o.azurewebsites.net
+- 💻 **저장소:** https://github.com/baekjungi/Kkul-Parking
 
-- 🗺️ **통합 지도 검색** — 카카오맵 JS SDK를 기본으로 쓰고, 실패 시 Leaflet(OSM) 지도로 자동 전환
-- 🅿️ **다중 데이터 소스** — 카카오 장소검색, 공유누리, 공공데이터포털(공항/포천/충주/광양/대전), 로컬 시드 데이터를 하나의 지도에 통합 표시
-- 💰 **절약 금액 계산** — 목적지 주변 평균 요금 대비 얼마나 절약되는지 자동 계산해서 보여줌
-- 📍 **실시간 위치 추적 + 나침반 모드** — 내 위치 버튼 한 번은 위치 조회, 두 번은 나침반(헤딩업 지도 회전) 모드로 전환
-- 🔗 **카카오톡 공유 / 길찾기** — 선택한 주차장을 카카오톡으로 바로 공유하거나 카카오톡 길찾기로 연결
-- 📝 **주차 꿀팁 제보** — 사용자가 발견한 무료/조건부 주차 정보를 제보하고 검수 후 반영
-- 🔒 **보안 강화** — XSS 방지, CORS 운영 정책, CSP(Report-Only), Rate Limit, Key Vault 기반 비밀키 관리
+## 프로젝트 소개
 
-## 1) 실행 방법
+"주차할 곳을 못 찾아서 목적지 근처를 뱅뱅 도는 상황"을 줄이고 싶어서 시작한 프로젝트입니다. 카카오맵 하나만으로는 알기 어려운 **무료/조건부 무료 주차장**을 여러 공공데이터 소스와 함께 지도에 모아 보여주고, 실제로 얼마를 아낄 수 있는지 계산해서 알려주는 데 초점을 맞췄습니다.
+
+## 주요 기능
+
+- 🗺️ **통합 지도 검색** — 카카오맵 JS SDK를 기본으로 사용하고, 로드에 실패하면 Leaflet(OSM) 지도로 자동 전환되는 이중화 구조
+- 🅿️ **다중 데이터 소스 통합** — 카카오 장소검색, 공유누리, 공공데이터포털(공항/포천/충주/광양/대전), 자체 시드 데이터를 한 지도에서 통합/분리 조회
+- 💰 **절약 금액 자동 계산** — 목적지 주변 평균 주차 요금 대비 얼마나 아낄 수 있는지 실시간으로 계산
+- 📍 **실시간 위치 추적 + 나침반 모드** — 내 위치 버튼 한 번은 위치 조회, 두 번은 나침반(헤딩업 지도 회전) 모드로 전환되는 3단계 UX
+- 🔗 **카카오톡 공유 / 길찾기 연동** — 선택한 주차장을 카카오톡으로 바로 공유하거나 카카오톡 길찾기로 연결
+- 📝 **주차 꿀팁 제보** — 사용자가 발견한 무료/조건부 주차 정보를 제보하고 검수 후 반영하는 크라우드소싱 구조
+- 🔒 **프로덕션 수준 보안** — XSS 방지, 운영 CORS 정책, CSP(Report-Only), Rate Limit, Key Vault 기반 비밀키 관리
+- ☁️ **클라우드 네이티브 배포** — Azure App Service + Bicep IaC + GitHub Actions CI/CD로 push 한 번에 자동 배포
+
+## 기술 스택
+
+| 영역 | 기술 |
+|---|---|
+| Frontend | Vanilla JS, Leaflet, Kakao Maps JS SDK, Kakao Share SDK |
+| Backend | Node.js, Express 5 |
+| 외부 연동 | 카카오 로컬/장소 API, 공유누리 API, 공공데이터포털 API, OpenStreetMap Nominatim |
+| 인프라 (IaC) | Azure Bicep (App Service, Key Vault, Log Analytics, Application Insights) |
+| CI/CD | GitHub Actions + Azure OIDC(Federated Credential) |
+| 보안 | Helmet(CSP), Rate Limiting, RBAC(Managed Identity), Key Vault |
+
+## 실행 방법
 
 ### 요구사항
 - Node.js 18 이상
 
-### 설치
 ```bash
-npm install
+npm install       # 설치
+npm run dev       # 개발 실행 (파일 변경 감지)
+npm start         # 일반 실행
+npm run preflight # 배포 전 점검
+npm run start:prod # 운영 실행
 ```
 
-### 개발 실행
-```bash
-npm run dev
-```
+실행 후 http://localhost:3000 접속
 
-### 일반 실행
-```bash
-npm start
-```
-
-### 배포 전 점검
-```bash
-npm run preflight
-```
-
-### 운영 실행
-```bash
-npm run start:prod
-```
-
-실행 후 아래 주소로 접속:
-- http://localhost:3000
-
-## 2) 현재 구현 상태
-
-### 구현 완료
-- 지도 기반 메인 UI (모바일 우선, 카카오맵 + Leaflet 폴백)
-- 검색창 + 위치 이동 + 타입/레이어 필터
-- 주차장 마커 표시 (무료/조건부/공영/건물/주변시설)
-- 바텀시트 상세 카드 + 절약 정보
-- 실시간 위치 추적(watchPosition) + 나침반 헤딩업 지도 회전
-- 카카오톡 공유(Kakao Share SDK) / 카카오톡 길찾기 연동
-- 제보 등록 폼 + API 연동
-- Express API 서버 (검색/상세/제보/통합검색)
-- Azure App Service 배포 + GitHub Actions 자동배포(CI/CD)
-
-### MVP 범위 외 (추후)
-- 실제 로그인/회원
-- 실제 이미지 업로드 스토리지
-- 저장됨/설정 탭 실기능
-- 제보 데이터의 DB 영속화 (현재는 파일 기반 JSON)
-
-## 3) 폴더 구조
+## 폴더 구조
 ```text
 .
-├─ public/
-│  ├─ index.html
-│  ├─ styles.css
-│  └─ app.js
-├─ data/
-│  ├─ parking-spots.json
-│  └─ reports.json
-├─ infra/                  # Azure Bicep 인프라
-│  ├─ main.bicep
-│  └─ modules/resources.bicep
-├─ .github/workflows/      # GitHub Actions CI/CD
-│  └─ azure-deploy.yml
-├─ server.js
-├─ azure.yaml
+├─ public/                # 프론트엔드 (index.html / styles.css / app.js)
+├─ data/                  # 로컬 시드 데이터 (주차장, 제보)
+├─ infra/                 # Azure Bicep 인프라 코드
+├─ .github/workflows/     # GitHub Actions CI/CD 파이프라인
+├─ server.js              # Express API 서버
+├─ azure.yaml             # azd 설정
 ├─ .env.example
-├─ prd.md
-└─ DEPLOY_PREP.md
+├─ prd.md                 # 기획 문서
+└─ DEPLOY_PREP.md         # 배포 전 점검 체크리스트
 ```
 
-## 4) 주요 API
-- GET /api/parking/search
-- GET /api/parking/:id
-- POST /api/reports
-- GET /api/health
-- GET /api/config/client
-- GET /api/parking/unified-search
-- GET /api/kakao/places/search
-- GET /api/kakao/places/categories
-- GET /api/gongyu/parking
-- GET /api/data-go/parking
+## 주요 API
+- `GET /api/parking/search` / `GET /api/parking/:id`
+- `POST /api/reports` / `GET /api/reports/:id`
+- `GET /api/parking/unified-search` — 통합 검색(카카오+공유누리+공공데이터+로컬)
+- `GET /api/kakao/places/search` / `GET /api/kakao/places/categories`
+- `GET /api/gongyu/parking` / `GET /api/data-go/parking`
+- `GET /api/health` / `GET /api/config/client`
 
-상세 스펙은 prd.md의 API 섹션 참고.
+상세 스펙은 [prd.md](prd.md) 참고.
 
-## 5) 환경변수
-.env.example 기준:
-- PORT=3000
-- DESTINATION_HOURLY_FEE=7500
-- NODE_ENV=development
-- ALLOWED_ORIGINS=
-- RATE_LIMIT_WINDOW_MS=60000
-- RATE_LIMIT_MAX=180
-- REPORT_RATE_LIMIT_MAX=20
-- KAKAO_JAVASCRIPT_KEY=
-- KAKAO_REST_API_KEY=
+## 배포 아키텍처
 
-운영 권장값:
-- NODE_ENV=production
-- ALLOWED_ORIGINS는 실제 서비스 도메인만 입력 (미설정 시 production에서는 브라우저 교차 출처 요청을 기본 차단)
-- RATE_LIMIT_WINDOW_MS=60000
-- RATE_LIMIT_MAX=120~300
-- REPORT_RATE_LIMIT_MAX=10~30
-
-## 6) 카카오 연동 주의사항
-
-카카오 키는 반드시 용도를 분리해서 사용하세요.
-
-- KAKAO_JAVASCRIPT_KEY: 브라우저 SDK 로딩용 키
-- KAKAO_REST_API_KEY: 서버에서 카카오 REST 호출할 때만 사용 (클라이언트 노출 금지)
-
-필수 체크:
-
-- 카카오 개발자 콘솔에서 플랫폼(웹) 도메인 등록 (배포 도메인 포함)
-- JavaScript 키는 허용된 도메인에서만 동작
-- 운영 환경에서 .env 실제 키는 Git에 커밋하지 않기 (Azure 배포 시 Key Vault 시크릿으로 관리)
-- 카카오 데이터는 외부 데이터이므로 요금/운영시간은 현장 확인 안내 필요
-
-현재 버전은 Leaflet 지도를 폴백으로 유지하면서 카카오맵을 기본으로 사용합니다.
-검색 우선순위는 서버 REST 프록시 -> 카카오 JS SDK -> OSM Nominatim fallback 입니다.
-지도 상단 레이어에서 주차장 / 건물 / 주변시설 데이터를 전환해서 볼 수 있습니다.
-추가로 공유누리/공공데이터포털 주차 데이터를 API로 가져와 지도에서 분리 조회 또는 통합 조회할 수 있습니다.
-
-## 7) 배포
-
-### Azure App Service + GitHub Actions (현재 운영 방식)
-- 인프라: `infra/main.bicep` (App Service Linux Node 20, Key Vault, Log Analytics, App Insights)
-- CI/CD: `main` 브랜치 push 시 `.github/workflows/azure-deploy.yml`이 자동으로 Azure App Service에 배포
-- 인증: GitHub OIDC(Federated Credential) 기반, 저장소에 Azure 비밀번호/시크릿 저장하지 않음
-- 배포 후 `/api/health` 자동 헬스체크
-
-### PM2 배포
-```bash
-npm i -g pm2
-pm2 start ecosystem.config.cjs --env production
-pm2 save
+```
+GitHub (main push)
+   └─ GitHub Actions (OIDC 인증, 시크릿 저장 없음)
+        └─ Azure App Service (Linux, Node 20)
+             ├─ Key Vault (카카오/공유누리 API 키)
+             ├─ Log Analytics
+             └─ Application Insights
 ```
 
-### Docker 배포
-```bash
-docker build -t kkul-parking:latest .
-docker run -d -p 3000:3000 --env-file .env --name kkul-parking kkul-parking:latest
-```
+- 인프라: `infra/main.bicep` 기반으로 프로비저닝 (App Service, Key Vault, Log Analytics, App Insights)
+- CI/CD: `main` 브랜치에 push하면 `.github/workflows/azure-deploy.yml`이 자동으로 배포하고 `/api/health`로 검증
+- 인증: GitHub OIDC(Federated Credential) 방식으로, 저장소에 Azure 비밀번호/시크릿을 저장하지 않음
+- 다른 환경(PM2, Docker)으로도 배포 가능 — 자세한 내용은 [DEPLOY_PREP.md](DEPLOY_PREP.md) 참고
 
-## 8) 최근 업데이트
+## 환경변수
+
+`.env.example` 참고. 핵심 항목:
+
+| 변수 | 설명 |
+|---|---|
+| `KAKAO_JAVASCRIPT_KEY` | 브라우저 SDK 로딩용 (공개 가능) |
+| `KAKAO_REST_API_KEY` | 서버 전용 REST 호출 키 (클라이언트 노출 금지) |
+| `ALLOWED_ORIGINS` | 운영 환경 CORS 허용 도메인 (미설정 시 production은 교차 출처 요청 기본 차단) |
+| `RATE_LIMIT_MAX`, `REPORT_RATE_LIMIT_MAX` | API/제보 요청 속도 제한 |
+
+카카오 키는 반드시 용도를 분리하고, 카카오 개발자 콘솔에 배포 도메인을 등록해야 지도/공유 기능이 정상 동작합니다.
+
+## 최근 업데이트
 
 - **2026-08-23**
   - Azure App Service(Linux, Node 20)에 배포, Bicep으로 Key Vault/Log Analytics/App Insights 구성
@@ -174,3 +113,11 @@ docker run -d -p 3000:3000 --env-file .env --name kkul-parking kkul-parking:late
   - 위치/나침반 아이콘을 이모지에서 커스텀 SVG로 교체
   - 지도 렌더링 실패 원인(CSS position 누락, 변수 선언 오류) 수정
   - UI 전반 접근성/터치 타겟/여백 개선 및 프로모션 배너 제거
+
+## 앞으로 하고 싶은 것
+
+- 실제 로그인/회원 기능
+- 제보 이미지 업로드용 오브젝트 스토리지 연동
+- 제보 데이터 DB 영속화 (현재는 파일 기반 JSON)
+- 저장됨/설정 탭 실기능
+
