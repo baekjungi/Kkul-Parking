@@ -1,0 +1,36 @@
+{
+  "name": "kkul-parking",
+  "version": "1.0.0",
+  "description": "지금 딱맞는 주차장을 찾아 거기에 맞는 이벤트나 혜택을 알수있다",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "preflight": "node scripts/preflight.js",
+    "start:prod": "cross-env NODE_ENV=production node server.js",
+    "test": "echo \"No tests yet\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/baekjungi/Kkul-Parking.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/baekjungi/Kkul-Parking/issues"
+  },
+  "homepage": "https://github.com/baekjungi/Kkul-Parking#readme",
+  "dependencies": {
+    "compression": "^1.8.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "morgan": "^1.11.0"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0"
+  }
+}

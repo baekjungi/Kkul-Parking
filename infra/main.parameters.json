@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": { "value": "${AZURE_ENV_NAME}" },
+    "location": { "value": "${AZURE_LOCATION}" },
+    "kakaoJavascriptKey": { "value": "${KAKAO_JAVASCRIPT_KEY}" },
+    "kakaoRestApiKey": { "value": "${KAKAO_REST_API_KEY}" },
+    "gongyuNuriApiKey": { "value": "${GONGYU_NURI_API_KEY}" },
+    "gongyuNuriBaseUrl": { "value": "${GONGYU_NURI_BASE_URL}" },
+    "allowedOrigins": { "value": "${ALLOWED_ORIGINS}" },
+    "destinationHourlyFee": { "value": "${DESTINATION_HOURLY_FEE}" },
+    "rateLimitWindowMs": { "value": "${RATE_LIMIT_WINDOW_MS}" },
+    "rateLimitMax": { "value": "${RATE_LIMIT_MAX}" },
+    "reportRateLimitMax": { "value": "${REPORT_RATE_LIMIT_MAX}" }
+  }
+}

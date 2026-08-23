@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>꿀주차</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+
+      <section class="map-top-overlay">
+        <form id="search-form" class="search-wrap">
+          <label for="destination-input" class="sr-only">목적지 검색</label>
+          <input id="destination-input" type="text" placeholder="목적지 검색..." required />
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <button type="button" id="refresh-btn" class="filter-btn" title="새로고침" aria-label="새로고침">↻</button>
+        </form>
+
+        <div id="layer-group" class="chip-group layer-group">
+          <button class="chip layer-chip active" data-layer="ALL">전체 통합</button>
+          <button class="chip layer-chip" data-layer="PARKING">주차장</button>
+          <button class="chip layer-chip" data-layer="BUILDING">건물</button>
+          <button class="chip layer-chip" data-layer="FACILITY">주변시설</button>
+        </div>
+      </section>
+
+      <div id="map" class="map-area"></div>
+
+      <div id="compass-indicator" class="compass-indicator hidden"><span>N</span></div>
+
+      <div id="map-status" class="map-status hidden" role="status" aria-live="polite"></div>
+
+      <section id="empty-state" class="empty-state hidden">
+        <h3>검색 결과가 없어요</h3>
+        <p>검색어를 바꾸거나 내 위치 버튼으로 주변을 다시 찾아보세요.</p>
+        <button id="empty-action" class="primary-btn" type="button">다시 검색</button>
+      </section>
+
+      <section id="discover-panel" class="discover-panel" aria-live="polite">
+        <button id="panel-drag-handle" class="panel-drag-handle" type="button" aria-label="패널 높이 조절"></button>
+        <div class="section-head">
+          <h3>실시간 인기 검색어</h3>
+        </div>
+        <div id="popular-keywords" class="popular-keywords">
+          <button class="keyword-chip" type="button" data-keyword="강남역 주차장">#강남역 주차장</button>
+          <button class="keyword-chip" type="button" data-keyword="코엑스 주차">#코엑스 주차</button>
+          <button class="keyword-chip" type="button" data-keyword="무료 주차">#무료 주차</button>
+          <button class="keyword-chip" type="button" data-keyword="공영주차장">#공영주차장</button>
+          <button class="keyword-chip" type="button" data-keyword="여의도 주차장">#여의도 주차장</button>
+        </div>
+
+        <div class="section-head with-action">
+          <h3>주변 추천 주차장</h3>
+          <button id="focus-map-btn" class="section-action" type="button">지도에서 보기</button>
+        </div>
+        <div class="filter-bar">
+          <label class="switch-row" for="nationwide-toggle">
+            <input id="nationwide-toggle" type="checkbox" />
+            <span>전국 보기</span>
+          </label>
+          <label class="switch-row" for="realtime-toggle">
+            <input id="realtime-toggle" type="checkbox" checked />
+            <span>실시간 갱신</span>
+          </label>
+          <label class="select-row" for="distance-filter">
+            <span>거리</span>
+            <select id="distance-filter">
+              <option value="ALL">전체</option>
+              <option value="3000">3km 이내</option>
+              <option value="10000">10km 이내</option>
+              <option value="30000">30km 이내</option>
+            </select>
+          </label>
+          <label class="select-row" for="stay-filter">
+            <span>주차시간</span>
+            <select id="stay-filter">
+              <option value="60">1시간</option>
+              <option value="120" selected>2시간</option>
+              <option value="180">3시간</option>
+              <option value="240">4시간</option>
+            </select>
+          </label>
+          <label class="select-row" for="sort-filter">
+            <span>정렬</span>
+            <select id="sort-filter">
+              <option value="DIST">가까운순</option>
+              <option value="FEE">요금낮은순</option>
+              <option value="NAME">이름순</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="budget-row">
+          <label for="budget-input">비교 기준(2시간)</label>
+          <input id="budget-input" type="number" min="0" step="500" value="7500" />
+          <button id="budget-apply-btn" type="button">적용</button>
+        </div>
+
+        <div class="kakao-action-bar">
+          <button id="open-kakao-map-btn" class="kakao-btn ghost" type="button">카카오맵 열기</button>
+          <button id="share-kakao-talk-btn" class="kakao-btn solid" type="button">카카오톡 공유</button>
+        </div>
+        <div id="result-list" class="result-list"></div>
+      </section>
+
+      <button id="locate-btn" class="fab locate" type="button" aria-label="내 위치">⌖</button>
+      <button id="map-mode-btn" class="fab mode" type="button">위성</button>
+
+      <section id="mini-card" class="mini-card hidden">
+        <div>
+          <span class="marker-badge">P</span>
+          <strong id="mini-name">-</strong>
+        </div>
+        <span id="mini-type" class="type-pill">-</span>
+      </section>
+
+      <section id="detail-sheet" class="detail-sheet hidden" aria-live="polite">
+        <div class="sheet-handle"></div>
+        <div class="detail-head">
+          <div>
+            <h2 id="detail-name">주차장 상세</h2>
+            <p id="detail-walk">도보 -분</p>
+          </div>
+          <button class="fav-btn" type="button" aria-label="저장">♡</button>
+        </div>
+
+        <article class="saving-box">
+          <p id="saving-title">건물 주차 대비 절약</p>
+          <p id="saving-sub">조건 확인 필요</p>
+        </article>
+
+        <article class="detail-card">
+          <div class="row">
+            <span>Ⓟ 기본 요금</span>
+            <strong id="detail-fee">-</strong>
+          </div>
+          <div class="row">
+            <span>◴ 추가 요금</span>
+            <strong id="detail-extra">-</strong>
+          </div>
+          <div class="row">
+            <span>⌖ 주소</span>
+            <strong id="detail-address">-</strong>
+          </div>
+          <div class="row">
+            <span>◷ 운영 시간</span>
+            <strong id="detail-hours">-</strong>
+          </div>
+        </article>
+
+        <div class="sheet-actions">
+          <button class="primary-btn" id="nav-start">웹 길안내 열기</button>
+          <button class="ghost-btn" id="open-place-link">장소 상세 열기</button>
+        </div>
+
+        <section class="nearby-section" aria-live="polite">
+          <div class="nearby-head">
+            <h3>주변 인기 장소 · 음식점</h3>
+            <span id="nearby-status" class="nearby-status">불러오는 중...</span>
+          </div>
+          <div id="nearby-list" class="nearby-list"></div>
+        </section>
+      </section>
+
+      <section id="report-panel" class="report-panel hidden">
+        <h2>주차 꿀팁 제보하기</h2>
+        <p>알고 있는 꿀팁을 공유하고 포인트를 받아가세요.</p>
+
+        <form id="report-form">
+          <section class="report-block">
+            <h3>⌖ 위치 선택</h3>
+            <div class="map-picker-card">
+              <div class="map-picker-preview">지도를 기준으로 현재 위치 사용</div>
+              <button type="button" class="map-picker-btn">🗺 지도에서 정확한 위치 선택</button>
+            </div>
+          </section>
+
+          <section class="report-block">
+            <h3>⬡ 꿀팁 유형</h3>
+            <div class="tip-type-list">
+              <label class="tip-type-item active">
+                <input type="radio" name="type" value="FREE" checked />
+                <div>
+                  <strong>무료 주차장</strong>
+                  <span>골목, 노상 등 조건 없는 무료</span>
+                </div>
+              </label>
+
+              <label class="tip-type-item">
+                <input type="radio" name="type" value="CONDITIONAL" />
+                <div>
+                  <strong>매장 지원 무료</strong>
+                  <span>영수증 지참 시 할인/무료</span>
+                </div>
+              </label>
+
+              <label class="tip-type-item">
+                <input type="radio" name="type" value="PUBLIC" />
+                <div>
+                  <strong>저렴한 공영 주차장</strong>
+                  <span>주변 대비 저렴한 요금</span>
+                </div>
+              </label>
+            </div>
+          </section>
+
+          <section class="report-block">
+            <h3>☰ 상세 조건 (선택)</h3>
+            <input name="parking_name" placeholder="주차장 명칭" required minlength="2" maxlength="100" />
+            <input name="rule_text" placeholder="예: 마트 1만 원 이상 구매 시 2시간 무료" required minlength="5" maxlength="500" />
+            <textarea name="memo" rows="3" maxlength="1000" placeholder="이용 꿀팁이나 상세 주차 조건을 적어주세요."></textarea>
+          </section>
+
+          <section class="report-block">
+            <h3>◉ 사진 첨부 (선택)</h3>
+            <div class="photo-zone">
+              <div class="photo-zone-icon">📷</div>
+              <strong>사진을 등록해주세요</strong>
+              <span>영수증이나 주차장 요금표 등</span>
+            </div>
+            <input name="image1" type="url" placeholder="사진 URL 1 (필수)" required />
+            <input name="image2" type="url" placeholder="사진 URL 2 (선택)" />
+            <input name="image3" type="url" placeholder="사진 URL 3 (선택)" />
+          </section>
+
+          <input name="lat" type="number" step="0.000001" required hidden />
+          <input name="lng" type="number" step="0.000001" required hidden />
+
+          <button class="primary-btn" type="submit">제보하고 500P 받기</button>
+        </form>
+
+        <p id="report-result" class="report-result"></p>
+      </section>
+
+      <nav class="bottom-nav">
+        <button class="nav-item active" data-tab="map">
+          <span class="nav-icon" aria-hidden="true">
+            <svg class="nav-svg" viewBox="0 0 24 24" focusable="false">
+              <path d="M15 4.5 9 2 3 4.5V20l6-2.5 6 2.5 6-2.5V2l-6 2.5ZM9 15.5l-4 1.67V6.03L9 4.36Zm2 .02V4.35l4 1.67v11.15Zm8 1.65-4 1.67V7.67l4-1.67Z"/>
+            </svg>
+          </span>
+          <span class="nav-label">지도</span>
+        </button>
+      </nav>
+    </div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="app.js"></script>
+  </body>
+</html>

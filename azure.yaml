@@ -1,0 +1,9 @@
+name: kkul-parking
+metadata:
+  template: azd-init
+
+services:
+  web:
+    project: .
+    language: js
+    host: appservice
