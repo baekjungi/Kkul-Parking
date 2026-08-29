@@ -18,7 +18,8 @@
 - 💰 **절약 금액 자동 계산** — 목적지 주변 평균 주차 요금 대비 얼마나 아낄 수 있는지 실시간으로 계산
 - 📍 **실시간 위치 추적 + 나침반 모드** — 내 위치 버튼 한 번은 위치 조회, 두 번은 나침반(헤딩업 지도 회전) 모드로 전환되는 3단계 UX
 - 🔗 **카카오톡 공유 / 길찾기 연동** — 선택한 주차장을 카카오톡으로 바로 공유하거나 카카오톡 길찾기로 연결
-- 📝 **주차 꿀팁 제보** — 사용자가 발견한 무료/조건부 주차 정보를 제보하고 검수 후 반영하는 크라우드소싱 구조
+- � **사진 업로드 & SQLite DB 저장** — 영수증/요금표 사진 첨부(Multer) 및 제보 데이터의 SQLite(better-sqlite3) 영속화
+- 🧪 **자동화 테스트 수트** — Jest & Supertest 기반 4개 테스트 수트(43개 테스트)로 요금 계산, 데이터 정규화, API 검증
 - 🔒 **프로덕션 수준 보안** — XSS 방지, 운영 CORS 정책, CSP(Report-Only), Rate Limit, Key Vault 기반 비밀키 관리
 - ☁️ **클라우드 네이티브 배포** — Azure App Service + Bicep IaC + GitHub Actions CI/CD로 push 한 번에 자동 배포
 
@@ -52,7 +53,8 @@
 
 ## 주요 API
 - `GET /api/parking/search` / `GET /api/parking/:id`
-- `POST /api/reports` / `GET /api/reports/:id`
+- `POST /api/reports` / `GET /api/reports` / `GET /api/reports/:id`
+- `POST /api/upload` — 주차장/영수증 사진 파일 업로드
 - `GET /api/parking/unified-search` — 통합 검색(카카오+공유누리+공공데이터+로컬)
 - `GET /api/kakao/places/search` / `GET /api/kakao/places/categories`
 - `GET /api/gongyu/parking` / `GET /api/data-go/parking`
@@ -64,8 +66,8 @@
 
 ```
 GitHub (main push)
-   └─ GitHub Actions (OIDC 인증, 시크릿 저장 없음)
-        └─ Azure App Service (Linux, Node 20)
+   └─ GitHub Actions (OIDC 인증, npm test 실행, 시크릿 저장 없음)
+        └─ Azure App Service (Linux, Node 22 LTS)
              ├─ Key Vault (카카오/공유누리 API 키)
              ├─ Log Analytics
              └─ Application Insights
@@ -94,7 +96,8 @@ GitHub (main push)
 - **2026-08-29**
   - Jest & Supertest 단위 및 API 통합 테스트 구축 (총 4개 수트, 43개 테스트 100% 통과)
   - `estimateParkingFee`, `distanceMeters`, `inferPriceProfile`, `normalizeExternalRows`, `mapOsmRowsToSpots`, `parseXmlRows`, SQLite DB 및 Express API 라우트 검증
-  - GitHub Actions CI/CD 파이프라인에 `npm test` 자동화 단계 추가
+  - GitHub Actions CI/CD 파이프라인에 `npm test` 자동 검증 단계 추가
+  - Azure App Service 런타임을 `Node 22-lts`로 업데이트하여 native addon C++ 모듈 호환성 보장
   - 제보 데이터 SQLite(better-sqlite3) DB 마이그레이션 및 다중 이미지 파일 업로드(/api/upload) 구현
 - **2026-08-23**
   - Azure App Service(Linux, Node 20)에 배포, Bicep으로 Key Vault/Log Analytics/App Insights 구성
