@@ -19,8 +19,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies and run tests
+        run: |
+          npm ci
+          npm test
+
       - name: Remove VCS metadata before packaging
-        run: rm -rf .git
+        run: rm -rf .git node_modules
 
       - name: Azure login (OIDC)
         uses: azure/login@v2

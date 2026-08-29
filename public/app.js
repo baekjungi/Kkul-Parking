@@ -72,7 +72,7 @@ const state = {
   }
 };
 
-const elements = {
+const elements = typeof document !== "undefined" ? {
   chips: Array.from(document.querySelectorAll(".chip")),
   typeChips: Array.from(document.querySelectorAll(".chip[data-type]")),
   layerChips: Array.from(document.querySelectorAll(".layer-chip")),
@@ -126,7 +126,7 @@ const elements = {
   showReportTab: document.getElementById("show-report-tab"),
   openPlaceLink: document.getElementById("open-place-link"),
   navStart: document.getElementById("nav-start")
-};
+} : {};
 
 let statusTimer = null;
 
@@ -448,7 +448,7 @@ function mapLabelHtml(spot) {
   return `<div class="map-info-label"><strong>${escapeHtml(spot.name)}</strong><span>${escapeHtml(markerInfoLine(spot))}</span></div>`;
 }
 
-function mapOsmRowsToSpots(rows, idPrefix = "osm") {
+function mapOsmRowsToSpots(rows, idPrefix = "osm", center = (typeof state !== "undefined" && state?.center) || { lat: 37.5519, lng: 126.9918 }) {
   return rows
     .map((row, index) => {
       const rowLat = Number(row.lat);
@@ -471,7 +471,7 @@ function mapOsmRowsToSpots(rows, idPrefix = "osm") {
         layer: "PARKING",
         lat: rowLat,
         lng: rowLng,
-        distance_m: distanceMeters(state.center.lat, state.center.lng, rowLat, rowLng),
+        distance_m: distanceMeters(center.lat, center.lng, rowLat, rowLng),
         operation_hours: "운영시간 정보 없음",
         summary_fee_text: "현장 확인 필요",
         summary_rule_text: null,
@@ -2271,398 +2271,373 @@ function switchTab(tab) {
   }
 }
 
-elements.typeChips.forEach((chip) => {
-  chip.addEventListener("click", async () => {
-    elements.typeChips.forEach((node) => node.classList.remove("active"));
-    chip.classList.add("active");
-    state.type = chip.dataset.type;
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  (elements.typeChips || []).forEach((chip) => {
+    chip.addEventListener("click", async () => {
+      (elements.typeChips || []).forEach((node) => node.classList.remove("active"));
+      chip.classList.add("active");
+      state.type = chip.dataset.type;
 
-    if (state.layer !== "PARKING") {
-      state.layer = "PARKING";
-      elements.layerChips.forEach((node) => {
-        node.classList.toggle("active", node.dataset.layer === "PARKING");
-      });
-    }
+      if (state.layer !== "PARKING") {
+        state.layer = "PARKING";
+        (elements.layerChips || []).forEach((node) => {
+          node.classList.toggle("active", node.dataset.layer === "PARKING");
+        });
+      }
 
-    await renderMarkers();
+      await renderMarkers();
+    });
   });
-});
 
-elements.layerChips.forEach((chip) => {
-  chip.addEventListener("click", async () => {
-    elements.layerChips.forEach((node) => node.classList.remove("active"));
-    chip.classList.add("active");
-    state.layer = chip.dataset.layer;
-    await renderMarkers();
+  (elements.layerChips || []).forEach((chip) => {
+    chip.addEventListener("click", async () => {
+      (elements.layerChips || []).forEach((node) => node.classList.remove("active"));
+      chip.classList.add("active");
+      state.layer = chip.dataset.layer;
+      await renderMarkers();
+    });
   });
-});
 
-elements.searchForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    const value = elements.destinationInput.value.trim();
-    if (!value) return;
-
-    showStatus("목적지를 찾는 중...", 0);
-    state.searchKeyword = value;
-
-    if (!state.nationwide) {
+  if (elements.searchForm) {
+    elements.searchForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
       try {
-        const point = await geocode(value);
-        state.center = point;
-        setMapView(point.lat, point.lng, 14);
-      } catch (geoError) {
-        showStatus("현재 지도 기준으로 키워드 검색을 진행합니다.", 1500);
+        const value = elements.destinationInput.value.trim();
+        if (!value) return;
+
+        showStatus("목적지를 찾는 중...", 0);
+        state.searchKeyword = value;
+
+        if (!state.nationwide) {
+          try {
+            const point = await geocode(value);
+            state.center = point;
+            setMapView(point.lat, point.lng, 14);
+          } catch (geoError) {
+            showStatus("현재 지도 기준으로 키워드 검색을 진행합니다.", 1500);
+          }
+        }
+
+        await renderMarkers();
+      } catch (error) {
+        showStatus(error.message, 1800);
       }
-    }
-
-    await renderMarkers();
-  } catch (error) {
-    showStatus(error.message, 1800);
-  }
-});
-
-elements.popularKeywords.forEach((button) => {
-  button.addEventListener("click", async () => {
-    const keyword = String(button.dataset.keyword || "").trim();
-    if (!keyword) return;
-    elements.destinationInput.value = keyword;
-    state.searchKeyword = keyword;
-    showStatus(`"${keyword}" 검색 중...`, 1200);
-    await renderMarkers();
-  });
-});
-
-if (elements.nationwideToggle) {
-  elements.nationwideToggle.addEventListener("change", async () => {
-    state.nationwide = Boolean(elements.nationwideToggle.checked);
-    if (state.nationwide) {
-      state.center = { lat: 36.35, lng: 127.95 };
-      setMapView(state.center.lat, state.center.lng, 7);
-      showStatus("전국 보기 모드로 전환했어요.", 1300);
-      state.layer = "PARKING";
-      elements.layerChips.forEach((node) => {
-        node.classList.toggle("active", node.dataset.layer === "PARKING");
-      });
-    } else {
-      setMapView(state.center.lat, state.center.lng, 13);
-      showStatus("근거리 보기 모드로 전환했어요.", 1300);
-    }
-    await renderMarkers();
-  });
-}
-
-if (elements.realtimeToggle) {
-  elements.realtimeToggle.addEventListener("change", () => {
-    state.realtime = Boolean(elements.realtimeToggle.checked);
-    updateRealtimeRefresh();
-    showStatus(state.realtime ? "실시간 갱신을 켰어요." : "실시간 갱신을 껐어요.", 1100);
-  });
-}
-
-if (elements.openKakaoMapBtn) {
-  elements.openKakaoMapBtn.addEventListener("click", () => {
-    openKakaoMapByAction();
-  });
-}
-
-if (elements.shareKakaoTalkBtn) {
-  elements.shareKakaoTalkBtn.addEventListener("click", async () => {
-    await shareKakaoTalkMessage();
-  });
-}
-
-if (elements.distanceFilter) {
-  elements.distanceFilter.addEventListener("change", async () => {
-    state.distanceFilter = elements.distanceFilter.value;
-    await renderMarkers();
-  });
-}
-
-if (elements.focusMapBtn) {
-  elements.focusMapBtn.addEventListener("click", () => {
-    hideDetail();
-    hideMiniCard();
-    showStatus("지도를 중심으로 보여드릴게요.", 1200);
-  });
-}
-
-elements.locateBtn.addEventListener("click", async () => {
-  if (!navigator.geolocation) {
-    showStatus("현재 브라우저에서 위치 기능을 사용할 수 없어요.", 2000);
-    return;
+    });
   }
 
-  if (state.locateMode === "idle") {
-    state.locateMode = "locate";
-    showStatus("현재 위치를 확인하는 중...", 1200);
-    startPositionWatch();
-  } else if (state.locateMode === "locate") {
-    const enabled = await enableCompassMode();
-    if (enabled) {
-      state.locateMode = "compass";
-      showStatus("나침반 모드로 전환했어요.", 1200);
-    } else {
-      showStatus("나침반 권한을 허용해주세요.", 2000);
-    }
-  } else {
-    disableCompassMode();
-    state.locateMode = "locate";
-    showStatus("위치 조회 모드로 돌아왔어요.", 1200);
-  }
-  updateLocateButtonUI();
-});
-
-elements.refreshBtn.addEventListener("click", async () => {
-  await renderMarkers();
-});
-
-if (elements.stayFilter) {
-  elements.stayFilter.addEventListener("change", async () => {
-    state.stayMinutes = Math.max(30, Number(elements.stayFilter.value || 120));
-    await renderMarkers();
-  });
-}
-
-if (elements.sortFilter) {
-  elements.sortFilter.addEventListener("change", async () => {
-    state.sortBy = elements.sortFilter.value || "DIST";
-    await renderMarkers();
-  });
-}
-
-if (elements.budgetApplyBtn && elements.budgetInput) {
-  elements.budgetApplyBtn.addEventListener("click", async () => {
-    state.destinationHourlyFee = Math.max(0, Number(elements.budgetInput.value || 0));
-    showStatus("비교 기준 금액을 적용했어요.", 1200);
-    await renderMarkers();
-  });
-}
-
-if (elements.mapModeBtn) {
-  elements.mapModeBtn.addEventListener("click", () => {
-    toggleMapMode();
-  });
-}
-
-elements.navItems.forEach((button) => {
-  button.addEventListener("click", () => {
-    const tab = button.dataset.tab;
-    switchTab(tab);
-  });
-});
-
-if (elements.showReportTab) {
-  elements.showReportTab.addEventListener("click", () => {
-    switchTab("report");
-  });
-}
-
-if (elements.emptyAction) {
-  elements.emptyAction.addEventListener("click", () => {
-    renderMarkers().catch(() => {
-      showStatus("다시 검색하지 못했어요.", 1600);
+  (elements.popularKeywords || []).forEach((button) => {
+    button.addEventListener("click", async () => {
+      const keyword = String(button.dataset.keyword || "").trim();
+      if (!keyword) return;
+      elements.destinationInput.value = keyword;
+      state.searchKeyword = keyword;
+      showStatus(`"${keyword}" 검색 중...`, 1200);
+      await renderMarkers();
     });
   });
-}
 
-elements.reportTypeItems.forEach((item) => {
-  const radio = item.querySelector('input[type="radio"]');
-  item.addEventListener("click", () => {
-    if (radio) {
-      radio.checked = true;
-    }
-    elements.reportTypeItems.forEach((node) => node.classList.remove("active"));
-    item.classList.add("active");
+  if (elements.nationwideToggle) {
+    elements.nationwideToggle.addEventListener("change", async () => {
+      state.nationwide = Boolean(elements.nationwideToggle.checked);
+      if (state.nationwide) {
+        state.center = { lat: 36.35, lng: 127.95 };
+        setMapView(state.center.lat, state.center.lng, 7);
+        showStatus("전국 보기 모드로 전환했어요.", 1300);
+        state.layer = "PARKING";
+        (elements.layerChips || []).forEach((node) => {
+          node.classList.toggle("active", node.dataset.layer === "PARKING");
+        });
+      } else {
+        setMapView(state.center.lat, state.center.lng, 13);
+        showStatus("근거리 보기 모드로 전환했어요.", 1300);
+      }
+      await renderMarkers();
+    });
+  }
+
+  if (elements.realtimeToggle) {
+    elements.realtimeToggle.addEventListener("change", () => {
+      state.realtime = Boolean(elements.realtimeToggle.checked);
+      updateRealtimeRefresh();
+      showStatus(state.realtime ? "실시간 갱신을 켰어요." : "실시간 갱신을 껐어요.", 1100);
+    });
+  }
+
+  if (elements.openKakaoMapBtn) {
+    elements.openKakaoMapBtn.addEventListener("click", () => {
+      openKakaoMapByAction();
+    });
+  }
+
+  if (elements.shareKakaoTalkBtn) {
+    elements.shareKakaoTalkBtn.addEventListener("click", async () => {
+      await shareKakaoTalkMessage();
+    });
+  }
+
+  if (elements.distanceFilter) {
+    elements.distanceFilter.addEventListener("change", async () => {
+      state.distanceFilter = elements.distanceFilter.value;
+      await renderMarkers();
+    });
+  }
+
+  if (elements.focusMapBtn) {
+    elements.focusMapBtn.addEventListener("click", () => {
+      hideDetail();
+      hideMiniCard();
+      showStatus("지도를 중심으로 보여드릴게요.", 1200);
+    });
+  }
+
+  if (elements.locateBtn) {
+    elements.locateBtn.addEventListener("click", async () => {
+      if (!navigator.geolocation) {
+        showStatus("현재 브라우저에서 위치 기능을 사용할 수 없어요.", 2000);
+        return;
+      }
+
+      if (state.locateMode === "idle") {
+        state.locateMode = "locate";
+        showStatus("현재 위치를 확인하는 중...", 1200);
+        startPositionWatch();
+      } else if (state.locateMode === "locate") {
+        const enabled = await enableCompassMode();
+        if (enabled) {
+          state.locateMode = "compass";
+          showStatus("나침반 모드로 전환했어요.", 1200);
+        } else {
+          showStatus("나침반 권한을 허용해주세요.", 2000);
+        }
+      } else {
+        disableCompassMode();
+        state.locateMode = "locate";
+        showStatus("위치 조회 모드로 돌아왔어요.", 1200);
+      }
+      updateLocateButtonUI();
+    });
+  }
+
+  if (elements.refreshBtn) {
+    elements.refreshBtn.addEventListener("click", async () => {
+      await renderMarkers();
+    });
+  }
+
+  if (elements.stayFilter) {
+    elements.stayFilter.addEventListener("change", async () => {
+      state.stayMinutes = Math.max(30, Number(elements.stayFilter.value || 120));
+      await renderMarkers();
+    });
+  }
+
+  if (elements.sortFilter) {
+    elements.sortFilter.addEventListener("change", async () => {
+      state.sortBy = elements.sortFilter.value || "DIST";
+      await renderMarkers();
+    });
+  }
+
+  if (elements.budgetApplyBtn && elements.budgetInput) {
+    elements.budgetApplyBtn.addEventListener("click", async () => {
+      state.destinationHourlyFee = Math.max(0, Number(elements.budgetInput.value || 0));
+      showStatus("비교 기준 금액을 적용했어요.", 1200);
+      await renderMarkers();
+    });
+  }
+
+  if (elements.mapModeBtn) {
+    elements.mapModeBtn.addEventListener("click", () => {
+      toggleMapMode();
+    });
+  }
+
+  (elements.navItems || []).forEach((button) => {
+    button.addEventListener("click", () => {
+      const tab = button.dataset.tab;
+      switchTab(tab);
+    });
   });
-});
 
-if (elements.mapPickerBtn) {
-  elements.mapPickerBtn.addEventListener("click", () => {
-    const latInput = elements.reportForm.querySelector('input[name="lat"]');
-    const lngInput = elements.reportForm.querySelector('input[name="lng"]');
-    latInput.value = state.center.lat.toFixed(6);
-    lngInput.value = state.center.lng.toFixed(6);
-    showStatus("현재 지도 중심 좌표를 위치로 적용했어요.", 1800);
+  if (elements.showReportTab) {
+    elements.showReportTab.addEventListener("click", () => {
+      switchTab("report");
+    });
+  }
+
+  if (elements.emptyAction) {
+    elements.emptyAction.addEventListener("click", () => {
+      renderMarkers().catch(() => {
+        showStatus("다시 검색하지 못했어요.", 1600);
+      });
+    });
+  }
+
+  (elements.reportTypeItems || []).forEach((item) => {
+    const radio = item.querySelector('input[type="radio"]');
+    item.addEventListener("click", () => {
+      if (radio) {
+        radio.checked = true;
+      }
+      (elements.reportTypeItems || []).forEach((node) => node.classList.remove("active"));
+      item.classList.add("active");
+    });
   });
-}
 
-if (elements.navStart) {
-  elements.navStart.addEventListener("click", () => {
-    if (!state.selectedSpot) {
-      showStatus("먼저 주차장을 선택해주세요.", 1500);
-      return;
-    }
+  if (elements.mapPickerBtn) {
+    elements.mapPickerBtn.addEventListener("click", () => {
+      const latInput = elements.reportForm.querySelector('input[name="lat"]');
+      const lngInput = elements.reportForm.querySelector('input[name="lng"]');
+      latInput.value = state.center.lat.toFixed(6);
+      lngInput.value = state.center.lng.toFixed(6);
+      showStatus("현재 지도 중심 좌표를 위치로 적용했어요.", 1800);
+    });
+  }
 
-    const { lat, lng, name } = state.selectedSpot;
-    const destinationName = encodeURIComponent(name || "주차장");
-    
-    // 카카오톡 길찾기 링크
-    const kakaoTalkLink = `kakaotalk://route?dlat=${lat}&dlng=${lng}&dname=${destinationName}&appname=kkul.parking`;
-    // 카카오맵 웹 길찾기 (카카오톡 없을 때 폴백)
-    const kakaoWebLink = `https://map.kakao.com/link/to/${destinationName}/${lng},${lat}`;
-    
-    // 카카오톡 앱이 설치되어 있을 가능성을 고려해 카카오톡 링크를 먼저 시도
-    window.location.href = kakaoTalkLink;
-    
-    // 카카오톡이 없으면 웹 버전으로 폴백 (2초 후)
-    setTimeout(() => {
-      window.open(kakaoWebLink, "_blank", "noopener,noreferrer");
-    }, 1500);
-    
-    showStatus("카카오톡 길찾기를 열고 있어요.", 1200);
-  });
-}
+  if (elements.navStart) {
+    elements.navStart.addEventListener("click", () => {
+      if (!state.selectedSpot) {
+        showStatus("먼저 주차장을 선택해주세요.", 1500);
+        return;
+      }
 
-if (elements.openPlaceLink) {
-  elements.openPlaceLink.addEventListener("click", () => {
-    if (!state.selectedSpot) {
-      showStatus("먼저 주차장을 선택해주세요.", 1500);
-      return;
-    }
+      const { lat, lng, name } = state.selectedSpot;
+      const destinationName = encodeURIComponent(name || "주차장");
+      const kakaoTalkLink = `kakaotalk://route?dlat=${lat}&dlng=${lng}&dname=${destinationName}&appname=kkul.parking`;
+      const kakaoWebLink = `https://map.kakao.com/link/to/${destinationName}/${lng},${lat}`;
 
-    const link = state.selectedSpot.url || `https://map.kakao.com/link/to/${encodeURIComponent(state.selectedSpot.name || "주차장")},${state.selectedSpot.lat},${state.selectedSpot.lng}`;
-    window.open(link, "_blank", "noopener,noreferrer");
-  });
-}
+      window.location.href = kakaoTalkLink;
+      setTimeout(() => {
+        window.open(kakaoWebLink, "_blank", "noopener,noreferrer");
+      }, 1500);
 
-const favoriteButton = document.querySelector(".fav-btn");
-if (favoriteButton) {
-  favoriteButton.addEventListener("click", async () => {
-    if (!state.selectedSpot) {
-      showStatus("먼저 주차장을 선택해주세요.", 1500);
-      return;
-    }
-    const active = toggleFavoriteBySpot(state.selectedSpot);
-    syncFavoriteButton();
-    showStatus(active ? "즐겨찾기에 저장했어요." : "즐겨찾기에서 제거했어요.", 1200);
-    await renderMarkers();
-  });
-}
+      showStatus("카카오톡 길찾기를 열고 있어요.", 1200);
+    });
+  }
 
-function renderPhotoPreviews() {
-  if (!elements.photoPreviewList) return;
-  elements.photoPreviewList.innerHTML = "";
-  state.reportPhotos.forEach((file, index) => {
-    const item = document.createElement("div");
-    item.className = "photo-preview-item";
+  if (elements.openPlaceLink) {
+    elements.openPlaceLink.addEventListener("click", () => {
+      if (!state.selectedSpot) {
+        showStatus("먼저 주차장을 선택해주세요.", 1500);
+        return;
+      }
 
-    const img = document.createElement("img");
-    img.className = "photo-preview-img";
-    img.src = URL.createObjectURL(file);
-    img.alt = `첨부 이미지 ${index + 1}`;
+      const link = state.selectedSpot.url || `https://map.kakao.com/link/to/${encodeURIComponent(state.selectedSpot.name || "주차장")},${state.selectedSpot.lat},${state.selectedSpot.lng}`;
+      window.open(link, "_blank", "noopener,noreferrer");
+    });
+  }
 
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "photo-remove-btn";
-    removeBtn.textContent = "✕";
-    removeBtn.title = "사진 삭제";
-    removeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      state.reportPhotos.splice(index, 1);
+  const favoriteButton = document.querySelector(".fav-btn");
+  if (favoriteButton) {
+    favoriteButton.addEventListener("click", async () => {
+      if (!state.selectedSpot) {
+        showStatus("먼저 주차장을 선택해주세요.", 1500);
+        return;
+      }
+      const active = toggleFavoriteBySpot(state.selectedSpot);
+      syncFavoriteButton();
+      showStatus(active ? "즐겨찾기에 저장했어요." : "즐겨찾기에서 제거했어요.", 1200);
+      await renderMarkers();
+    });
+  }
+
+  if (elements.photoFileInput) {
+    elements.photoFileInput.addEventListener("change", (event) => {
+      const files = Array.from(event.target.files || []);
+      if (files.length === 0) return;
+
+      const combined = [...state.reportPhotos, ...files].slice(0, 3);
+      state.reportPhotos = combined;
       renderPhotoPreviews();
+      event.target.value = "";
     });
-
-    item.appendChild(img);
-    item.appendChild(removeBtn);
-    elements.photoPreviewList.appendChild(item);
-  });
-}
-
-if (elements.photoFileInput) {
-  elements.photoFileInput.addEventListener("change", (event) => {
-    const files = Array.from(event.target.files || []);
-    if (files.length === 0) return;
-
-    const combined = [...state.reportPhotos, ...files].slice(0, 3);
-    state.reportPhotos = combined;
-    renderPhotoPreviews();
-    event.target.value = "";
-  });
-}
-
-if (elements.reportForm) {
-elements.reportForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (elements.reportResult) {
-    elements.reportResult.textContent = "";
   }
 
-  const submitButton = elements.reportForm.querySelector('button[type="submit"]');
-  if (submitButton) {
-    submitButton.disabled = true;
-    submitButton.textContent = "제보 및 이미지 업로드 중...";
-  }
-
-  const formData = new FormData(elements.reportForm);
-  let imageUrls = [];
-
-  if (state.reportPhotos && state.reportPhotos.length > 0) {
-    try {
-      const uploadData = new FormData();
-      state.reportPhotos.forEach((file) => uploadData.append("photos", file));
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: uploadData
-      });
-      const uploadPayload = await uploadRes.json();
-      if (!uploadRes.ok || !uploadPayload.success) {
-        throw new Error(uploadPayload?.error?.message || "이미지 업로드에 실패했습니다.");
-      }
-      imageUrls = uploadPayload.data?.urls || [];
-    } catch (uploadErr) {
-      console.error("[Report Upload Error]", uploadErr);
-      showStatus("사진 업로드에 실패했어요.", 2000);
+  if (elements.reportForm) {
+    elements.reportForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
       if (elements.reportResult) {
-        elements.reportResult.textContent = `사진 업로드 실패: ${uploadErr.message}`;
+        elements.reportResult.textContent = "";
       }
+
+      const submitButton = elements.reportForm.querySelector('button[type="submit"]');
       if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = "제보하고 500P 받기";
+        submitButton.disabled = true;
+        submitButton.textContent = "제보 및 이미지 업로드 중...";
       }
-      return;
-    }
-  }
 
-  const payload = {
-    parking_name: String(formData.get("parking_name") || ""),
-    type: String(formData.get("type") || "FREE"),
-    lat: Number(formData.get("lat")),
-    lng: Number(formData.get("lng")),
-    rule_text: String(formData.get("rule_text") || ""),
-    image_urls: imageUrls,
-    memo: String(formData.get("memo") || "")
-  };
+      const formData = new FormData(elements.reportForm);
+      let imageUrls = [];
 
-  try {
-    await apiPost("/api/reports", payload);
-    elements.reportForm.reset();
-    state.reportPhotos = [];
-    renderPhotoPreviews();
-    if (elements.reportResult) {
-      elements.reportResult.textContent = "제보가 접수되었습니다. 검토 후 반영할게요.";
-    }
-    showStatus("제보 등록이 완료되었어요.", 1700);
-  } catch (error) {
-    showStatus("제보 등록에 실패했어요.", 1800);
-    if (elements.reportResult) {
-      elements.reportResult.textContent = "제보 등록에 실패했어요. 잠시 후 다시 시도해주세요.";
-    }
-  } finally {
-    if (submitButton) {
-      submitButton.disabled = false;
-      submitButton.textContent = "제보하고 500P 받기";
-    }
+      if (state.reportPhotos && state.reportPhotos.length > 0) {
+        try {
+          const uploadData = new FormData();
+          state.reportPhotos.forEach((file) => uploadData.append("photos", file));
+          const uploadRes = await fetch("/api/upload", {
+            method: "POST",
+            body: uploadData
+          });
+          const uploadPayload = await uploadRes.json();
+          if (!uploadRes.ok || !uploadPayload.success) {
+            throw new Error(uploadPayload?.error?.message || "이미지 업로드에 실패했습니다.");
+          }
+          imageUrls = uploadPayload.data?.urls || [];
+        } catch (uploadErr) {
+          console.error("[Report Upload Error]", uploadErr);
+          showStatus("사진 업로드에 실패했어요.", 2000);
+          if (elements.reportResult) {
+            elements.reportResult.textContent = `사진 업로드 실패: ${uploadErr.message}`;
+          }
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = "제보하고 500P 받기";
+          }
+          return;
+        }
+      }
+
+      const payload = {
+        parking_name: String(formData.get("parking_name") || ""),
+        type: String(formData.get("type") || "FREE"),
+        lat: Number(formData.get("lat")),
+        lng: Number(formData.get("lng")),
+        rule_text: String(formData.get("rule_text") || ""),
+        image_urls: imageUrls,
+        memo: String(formData.get("memo") || "")
+      };
+
+      try {
+        await apiPost("/api/reports", payload);
+        elements.reportForm.reset();
+        state.reportPhotos = [];
+        renderPhotoPreviews();
+        if (elements.reportResult) {
+          elements.reportResult.textContent = "제보가 접수되었습니다. 검토 후 반영할게요.";
+        }
+        showStatus("제보 등록이 완료되었어요.", 1700);
+      } catch (error) {
+        showStatus("제보 등록에 실패했어요.", 1800);
+        if (elements.reportResult) {
+          elements.reportResult.textContent = "제보 등록에 실패했어요. 잠시 후 다시 시도해주세요.";
+        }
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = "제보하고 500P 받기";
+        }
+      }
+    });
   }
-});
 }
 
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    hideDetail();
-    hideMiniCard();
-  }
-});
+if (typeof document !== "undefined") {
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      hideDetail();
+      hideMiniCard();
+    }
+  });
+}
 
 async function bootstrap() {
   loadFavorites();
@@ -2710,6 +2685,22 @@ async function bootstrap() {
   await renderMarkers();
 }
 
-bootstrap().catch(() => {
-  showStatus("지도 데이터를 불러오지 못했어요.", 2000);
-});
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  bootstrap().catch(() => {
+    showStatus("지도 데이터를 불러오지 못했어요.", 2000);
+  });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    distanceMeters,
+    inferPriceProfile,
+    estimateParkingFee,
+    normalizeTypeLabel,
+    dedupeByLocation,
+    spotAddressText,
+    mapOsmRowsToSpots,
+    won,
+    normalizeSourceForFilter
+  };
+}

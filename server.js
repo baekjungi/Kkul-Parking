@@ -413,10 +413,11 @@ function parseXmlRows(xmlText) {
   const blocks = xmlText.match(/<(item|row)>([\s\S]*?)<\/(item|row)>/gi) || [];
 
   for (const block of blocks) {
+    const innerContent = block.replace(/^<(item|row)>/i, "").replace(/<\/(item|row)>$/i, "");
     const row = {};
-    const regex = /<([a-zA-Z0-9_:-]+)>([\s\S]*?)<\/\1>/g;
+    const tagRegex = /<([a-zA-Z0-9_:-]+)>([\s\S]*?)<\/\1>/g;
     let match;
-    while ((match = regex.exec(block)) !== null) {
+    while ((match = tagRegex.exec(innerContent)) !== null) {
       const key = String(match[1] || "").trim();
       const value = String(match[2] || "").replace(/<!\[CDATA\[|\]\]>/g, "").trim();
       if (key) {
@@ -1533,16 +1534,23 @@ if (NODE_ENV === "production" && ALLOWED_ORIGINS.length === 0) {
   console.warn("[SECURITY] ALLOWED_ORIGINS is empty in production: cross-origin browser requests will be rejected. Set ALLOWED_ORIGINS if a separate frontend domain calls this API.");
 }
 
-const server = app.listen(PORT, () => {
-  console.log(`Kkul-Parking server running on http://localhost:${PORT} [${NODE_ENV}]`);
-});
+let server = null;
+if (require.main === module) {
+  server = app.listen(PORT, () => {
+    console.log(`Kkul-Parking server running on http://localhost:${PORT} [${NODE_ENV}]`);
+  });
+}
 
 function shutdown(signal) {
   console.log(`${signal} received. Closing server gracefully...`);
-  server.close(() => {
-    console.log("HTTP server closed.");
+  if (server) {
+    server.close(() => {
+      console.log("HTTP server closed.");
+      process.exit(0);
+    });
+  } else {
     process.exit(0);
-  });
+  }
 
   setTimeout(() => {
     console.error("Graceful shutdown timeout. Force exit.");
@@ -1560,3 +1568,18 @@ process.on("unhandledRejection", (reason) => {
 process.on("uncaughtException", (error) => {
   console.error("Uncaught exception:", error);
 });
+
+module.exports = {
+  app,
+  distanceMeters,
+  isValidLatLng,
+  sanitizeText,
+  mapType,
+  calculateAlternativeCost,
+  parseXmlRows,
+  parsePayloadByType,
+  normalizeExternalRows,
+  dedupeParkingItems,
+  isValidImageUrl,
+  isValidHttpUrl
+};

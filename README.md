@@ -27,7 +27,8 @@
 | 영역 | 기술 |
 |---|---|
 | Frontend | Vanilla JS, Leaflet, Kakao Maps JS SDK, Kakao Share SDK |
-| Backend | Node.js, Express 5 |
+| Backend | Node.js, Express 5, SQLite (better-sqlite3), Multer |
+| 테스트 | Jest, Supertest (단위 및 API 통합 테스트) |
 | 외부 연동 | 카카오 로컬/장소 API, 공유누리 API, 공공데이터포털 API, OpenStreetMap Nominatim |
 | 인프라 (IaC) | Azure Bicep (App Service, Key Vault, Log Analytics, Application Insights) |
 | CI/CD | GitHub Actions + Azure OIDC(Federated Credential) |
@@ -38,7 +39,8 @@
 ```text
 .
 ├─ public/                # 프론트엔드 (index.html / styles.css / app.js)
-├─ data/                  # 로컬 시드 데이터 (주차장, 제보)
+├─ tests/                 # Jest 단위 & API 통합 테스트 수트
+├─ data/                  # 로컬 시드 데이터 (주차장, 제보 SQLite DB)
 ├─ infra/                 # Azure Bicep 인프라 코드
 ├─ .github/workflows/     # GitHub Actions CI/CD 파이프라인
 ├─ server.js              # Express API 서버
@@ -89,6 +91,11 @@ GitHub (main push)
 
 ## 최근 업데이트
 
+- **2026-08-29**
+  - Jest & Supertest 단위 및 API 통합 테스트 구축 (총 4개 수트, 43개 테스트 100% 통과)
+  - `estimateParkingFee`, `distanceMeters`, `inferPriceProfile`, `normalizeExternalRows`, `mapOsmRowsToSpots`, `parseXmlRows`, SQLite DB 및 Express API 라우트 검증
+  - GitHub Actions CI/CD 파이프라인에 `npm test` 자동화 단계 추가
+  - 제보 데이터 SQLite(better-sqlite3) DB 마이그레이션 및 다중 이미지 파일 업로드(/api/upload) 구현
 - **2026-08-23**
   - Azure App Service(Linux, Node 20)에 배포, Bicep으로 Key Vault/Log Analytics/App Insights 구성
   - GitHub Actions 기반 CI/CD 파이프라인 구축 (OIDC 인증, 시크릿 저장 없음)
