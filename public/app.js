@@ -51,6 +51,7 @@ const state = {
   stayMinutes: 120,
   lastRenderedSpots: [],
   favorites: new Set(),
+  reportPhotos: [],
   locateMode: "idle",
   geoWatchId: null,
   lastPosition: null,
@@ -116,6 +117,8 @@ const elements = {
   mapModeBtn: document.getElementById("map-mode-btn"),
   reportPanel: document.getElementById("report-panel"),
   reportForm: document.getElementById("report-form"),
+  photoFileInput: document.getElementById("photo-file-input"),
+  photoPreviewList: document.getElementById("photo-preview-list"),
   reportTypeItems: Array.from(document.querySelectorAll(".tip-type-item")),
   mapPickerBtn: document.querySelector(".map-picker-btn"),
   reportResult: document.getElementById("report-result"),
@@ -2537,6 +2540,47 @@ if (favoriteButton) {
   });
 }
 
+function renderPhotoPreviews() {
+  if (!elements.photoPreviewList) return;
+  elements.photoPreviewList.innerHTML = "";
+  state.reportPhotos.forEach((file, index) => {
+    const item = document.createElement("div");
+    item.className = "photo-preview-item";
+
+    const img = document.createElement("img");
+    img.className = "photo-preview-img";
+    img.src = URL.createObjectURL(file);
+    img.alt = `첨부 이미지 ${index + 1}`;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "photo-remove-btn";
+    removeBtn.textContent = "✕";
+    removeBtn.title = "사진 삭제";
+    removeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      state.reportPhotos.splice(index, 1);
+      renderPhotoPreviews();
+    });
+
+    item.appendChild(img);
+    item.appendChild(removeBtn);
+    elements.photoPreviewList.appendChild(item);
+  });
+}
+
+if (elements.photoFileInput) {
+  elements.photoFileInput.addEventListener("change", (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    const combined = [...state.reportPhotos, ...files].slice(0, 3);
+    state.reportPhotos = combined;
+    renderPhotoPreviews();
+    event.target.value = "";
+  });
+}
+
 if (elements.reportForm) {
 elements.reportForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -2547,11 +2591,38 @@ elements.reportForm.addEventListener("submit", async (event) => {
   const submitButton = elements.reportForm.querySelector('button[type="submit"]');
   if (submitButton) {
     submitButton.disabled = true;
-    submitButton.textContent = "제보 등록 중...";
+    submitButton.textContent = "제보 및 이미지 업로드 중...";
   }
 
   const formData = new FormData(elements.reportForm);
-  const imageUrls = [formData.get("image1"), formData.get("image2"), formData.get("image3")].filter(Boolean);
+  let imageUrls = [];
+
+  if (state.reportPhotos && state.reportPhotos.length > 0) {
+    try {
+      const uploadData = new FormData();
+      state.reportPhotos.forEach((file) => uploadData.append("photos", file));
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: uploadData
+      });
+      const uploadPayload = await uploadRes.json();
+      if (!uploadRes.ok || !uploadPayload.success) {
+        throw new Error(uploadPayload?.error?.message || "이미지 업로드에 실패했습니다.");
+      }
+      imageUrls = uploadPayload.data?.urls || [];
+    } catch (uploadErr) {
+      console.error("[Report Upload Error]", uploadErr);
+      showStatus("사진 업로드에 실패했어요.", 2000);
+      if (elements.reportResult) {
+        elements.reportResult.textContent = `사진 업로드 실패: ${uploadErr.message}`;
+      }
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = "제보하고 500P 받기";
+      }
+      return;
+    }
+  }
 
   const payload = {
     parking_name: String(formData.get("parking_name") || ""),
@@ -2566,6 +2637,8 @@ elements.reportForm.addEventListener("submit", async (event) => {
   try {
     await apiPost("/api/reports", payload);
     elements.reportForm.reset();
+    state.reportPhotos = [];
+    renderPhotoPreviews();
     if (elements.reportResult) {
       elements.reportResult.textContent = "제보가 접수되었습니다. 검토 후 반영할게요.";
     }

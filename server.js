@@ -7,6 +7,8 @@ const compression = require("compression");
 const morgan = require("morgan");
 const fs = require("fs");
 const path = require("path");
+const Database = require("better-sqlite3");
+const multer = require("multer");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -54,6 +56,101 @@ const REPORT_RATE_LIMIT_MAX = Math.max(3, Math.min(Number(process.env.REPORT_RAT
 const spotsPath = path.join(__dirname, "data", "parking-spots.json");
 const reportsPath = path.join(__dirname, "data", "reports.json");
 const publicPath = path.join(__dirname, "public");
+
+const dataDir = path.join(__dirname, "data");
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+const uploadsDir = path.join(__dirname, "public", "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const dbPath = path.join(dataDir, "parking.db");
+const db = new Database(dbPath);
+db.pragma("journal_mode = WAL");
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS reports (
+    id TEXT PRIMARY KEY,
+    parking_name TEXT NOT NULL,
+    report_type TEXT NOT NULL,
+    lat REAL NOT NULL,
+    lng REAL NOT NULL,
+    address TEXT,
+    rule_text TEXT NOT NULL,
+    operation_hours TEXT,
+    image_urls TEXT,
+    memo TEXT,
+    reporter_nickname TEXT,
+    review_status TEXT DEFAULT 'PENDING',
+    reject_reason TEXT,
+    created_at TEXT NOT NULL
+  )
+`);
+
+try {
+  const existingCount = db.prepare("SELECT COUNT(*) as count FROM reports").get().count;
+  if (existingCount === 0 && fs.existsSync(reportsPath)) {
+    const fileReports = JSON.parse(fs.readFileSync(reportsPath, "utf-8") || "[]");
+    if (Array.isArray(fileReports) && fileReports.length > 0) {
+      const insert = db.prepare(`
+        INSERT INTO reports (id, parking_name, report_type, lat, lng, address, rule_text, operation_hours, image_urls, memo, reporter_nickname, review_status, reject_reason, created_at)
+        VALUES (@id, @parking_name, @report_type, @lat, @lng, @address, @rule_text, @operation_hours, @image_urls, @memo, @reporter_nickname, @review_status, @reject_reason, @created_at)
+      `);
+      const insertMany = db.transaction((rows) => {
+        for (const r of rows) {
+          insert.run({
+            id: r.id || `rp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            parking_name: r.parking_name || "",
+            report_type: r.report_type || r.type || "FREE",
+            lat: Number(r.lat || 0),
+            lng: Number(r.lng || 0),
+            address: r.address || "",
+            rule_text: r.rule_text || "",
+            operation_hours: r.operation_hours || "",
+            image_urls: JSON.stringify(Array.isArray(r.image_urls) ? r.image_urls : []),
+            memo: r.memo || "",
+            reporter_nickname: r.reporter_nickname || "anonymous",
+            review_status: r.review_status || "PENDING",
+            reject_reason: r.reject_reason || null,
+            created_at: r.created_at || new Date().toISOString()
+          });
+        }
+      });
+      insertMany(fileReports);
+      console.log(`[DB] Migrated ${fileReports.length} reports to SQLite`);
+    }
+  }
+} catch (error) {
+  console.error("[DB Migration Error]", error);
+}
+
+const uploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
+    const uniqueName = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+    cb(null, uniqueName);
+  }
+});
+
+const upload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp/;
+    const mimeValid = allowed.test(file.mimetype.toLowerCase());
+    const extValid = allowed.test(path.extname(file.originalname).toLowerCase());
+    if (mimeValid && extValid) {
+      return cb(null, true);
+    }
+    cb(new Error("ONLY_IMAGE_FILES_ALLOWED"));
+  }
+});
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -178,6 +275,13 @@ function isValidHttpUrl(value) {
   } catch (error) {
     return false;
   }
+}
+
+function isValidImageUrl(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  if (text.startsWith("/uploads/")) return true;
+  return isValidHttpUrl(text);
 }
 
 app.use("/api", (req, res, next) => {
@@ -1192,6 +1296,28 @@ app.get("/api/parking/:id", (req, res) => {
   return res.status(result.status).json(result.body);
 });
 
+app.post("/api/upload", (req, res) => {
+  upload.array("photos", 3)(req, res, (err) => {
+    if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        const result = fail("FILE_TOO_LARGE", "Maximum file size is 10MB per image", 400);
+        return res.status(result.status).json(result.body);
+      }
+      const result = fail("UPLOAD_FAILED", err.message || "File upload failed", 400);
+      return res.status(result.status).json(result.body);
+    }
+
+    if (!req.files || req.files.length === 0) {
+      const result = fail("NO_FILES_UPLOADED", "No image files were uploaded", 400);
+      return res.status(result.status).json(result.body);
+    }
+
+    const urls = req.files.map((file) => `/uploads/${file.filename}`);
+    const result = ok({ urls });
+    return res.status(result.status).json(result.body);
+  });
+});
+
 app.post("/api/reports", (req, res) => {
   const {
     parking_name,
@@ -1238,25 +1364,21 @@ app.post("/api/reports", (req, res) => {
     return res.status(result.status).json(result.body);
   }
 
-  if (safeImageUrls.length < 1 || safeImageUrls.length > 3) {
-    const result = fail("IMAGE_LIMIT_EXCEEDED", "image_urls must be 1~3 items", 400);
+  if (safeImageUrls.length > 3) {
+    const result = fail("IMAGE_LIMIT_EXCEEDED", "image_urls must be 0~3 items", 400);
     return res.status(result.status).json(result.body);
   }
 
-  if (safeImageUrls.some((url) => !isValidHttpUrl(url))) {
-    const result = fail("INVALID_BODY", "image_urls must be valid http/https URLs", 400);
+  if (safeImageUrls.some((url) => !isValidImageUrl(url))) {
+    const result = fail("INVALID_BODY", "image_urls must be valid http/https URLs or uploaded file paths", 400);
     return res.status(result.status).json(result.body);
   }
 
-  const reports = readJson(reportsPath, []);
-
-  const isDuplicate = reports.some(
-    (report) =>
-      report.parking_name === safeParkingName &&
-      Math.abs(report.lat - Number(lat)) < 0.0001 &&
-      Math.abs(report.lng - Number(lng)) < 0.0001 &&
-      report.review_status === "PENDING"
-  );
+  const isDuplicateStmt = db.prepare(`
+    SELECT id FROM reports
+    WHERE parking_name = ? AND ABS(lat - ?) < 0.0001 AND ABS(lng - ?) < 0.0001 AND review_status = 'PENDING'
+  `);
+  const isDuplicate = isDuplicateStmt.get(safeParkingName, Number(lat), Number(lng));
 
   if (isDuplicate) {
     const result = fail("DUPLICATE_REPORT", "pending duplicate report exists", 422);
@@ -1280,8 +1402,25 @@ app.post("/api/reports", (req, res) => {
     created_at: new Date().toISOString()
   };
 
-  reports.push(newReport);
-  writeJson(reportsPath, reports);
+  const insertStmt = db.prepare(`
+    INSERT INTO reports (id, parking_name, report_type, lat, lng, address, rule_text, operation_hours, image_urls, memo, reporter_nickname, review_status, reject_reason, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', NULL, ?)
+  `);
+
+  insertStmt.run(
+    newReport.id,
+    safeParkingName,
+    type,
+    Number(lat),
+    Number(lng),
+    safeAddress,
+    safeRuleText,
+    safeOperationHours,
+    JSON.stringify(safeImageUrls),
+    safeMemo,
+    safeReporter,
+    newReport.created_at
+  );
 
   const result = ok(
     {
@@ -1295,17 +1434,56 @@ app.post("/api/reports", (req, res) => {
   return res.status(result.status).json(result.body);
 });
 
+app.get("/api/reports", (req, res) => {
+  const stmt = db.prepare("SELECT * FROM reports ORDER BY created_at DESC LIMIT 50");
+  const rows = stmt.all().map((r) => {
+    let parsedUrls = [];
+    try { parsedUrls = JSON.parse(r.image_urls || "[]"); } catch (e) {}
+    return {
+      report_id: r.id,
+      parking_name: r.parking_name,
+      report_type: r.report_type,
+      lat: r.lat,
+      lng: r.lng,
+      address: r.address,
+      rule_text: r.rule_text,
+      operation_hours: r.operation_hours,
+      image_urls: parsedUrls,
+      memo: r.memo,
+      reporter_nickname: r.reporter_nickname,
+      review_status: r.review_status,
+      reject_reason: r.reject_reason,
+      created_at: r.created_at
+    };
+  });
+  const result = ok({ items: rows, total: rows.length });
+  return res.status(result.status).json(result.body);
+});
+
 app.get("/api/reports/:id", (req, res) => {
-  const reports = readJson(reportsPath, []);
-  const target = reports.find((report) => report.id === req.params.id);
+  const stmt = db.prepare("SELECT * FROM reports WHERE id = ?");
+  const target = stmt.get(req.params.id);
 
   if (!target) {
     const result = fail("REPORT_NOT_FOUND", "report not found", 404);
     return res.status(result.status).json(result.body);
   }
 
+  let parsedUrls = [];
+  try { parsedUrls = JSON.parse(target.image_urls || "[]"); } catch (e) {}
+
   const result = ok({
     report_id: target.id,
+    parking_name: target.parking_name,
+    report_type: target.report_type,
+    lat: target.lat,
+    lng: target.lng,
+    address: target.address,
+    rule_text: target.rule_text,
+    operation_hours: target.operation_hours,
+    image_urls: parsedUrls,
+    memo: target.memo,
+    reporter_nickname: target.reporter_nickname,
     review_status: target.review_status,
     reject_reason: target.reject_reason,
     created_at: target.created_at
